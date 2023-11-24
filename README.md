@@ -33,6 +33,7 @@ The code folder contains 4 files:
   2. AgentA: the controller with algorithm. This is the only file you need to start;
   3. Model: the complete neural network;
   4. Helper: a view that generates the performance of the neural network live during training.
+
 The model weights are in: "model7.pth". Of course, with some minor modifications, you can also train the neural network yourself!
 
 The main libraries from this project are:
