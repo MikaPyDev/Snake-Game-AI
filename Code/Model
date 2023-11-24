@@ -1,1 +1,127 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+import os
 
+# model
+class Linear_QNet(nn.Module):
+    # een neuraal netwerk met een input_layer, een hidden_layer (middelste) en een output layer
+    # hier maak je de model variables
+    def __init__(self, input_size, hidden_size, output_size):
+        # een superklasse, om nn.Module correct te initialiseren
+        # nn.Module is zeg maar de model setup in pytorch (sequential() in tf)
+        super().__init__()
+        # 2 lineaire layers maken (model.add in tf)
+        # basis layers waarbij elk input neuron is verbonden met elk output neuron,
+        # waartussen een lineaire transformatie wordt toegepast (Dense in tf, hier nn.Linear)
+        # input_size als input size en hidden_size als output (size is het aantal neurons in die layer)
+        self.linear1 = nn.Linear(input_size, hidden_size)
+        # hidden_size als input size en output_size als output size
+        self.linear2 = nn.Linear(hidden_size, output_size)
+        # ZELF GEDAAN
+        # self.linear3 = nn.Linear(hidden_size2, output_size)
+    # pytorch moet altijd een forward function hebben met de tensor
+    # x is de state0 (de tensor) uit Agent
+    # hier converteer je de gegevens met een activation functie
+    # forward wordt automatisch aangeroepen als je nn.Module gebruikt en dan model(tensor) typt.
+    # het moet forward heten, anders werkt het niet. (dit is een functie van pytorch)
+    def forward(self, x):
+        # relu is de activation functie, zet - getallen om in 0's en laat + getallen hetzelfde
+        # dit om een lineaire layer te verbeteren
+        # hier gaat de input naar de hidden_layer waar relu wordt toegepast en het een tensor met 256 waarden wordt
+        x = F.relu(self.linear1(x))
+        # de activation hoeft er niet 2 keer bij te staan
+        # hier gaat de hidden naar de output_layer waar relu wordt toegepast en het een tensor met 3 waarden wordt.
+        x = self.linear2(x)
+        # ZELF GEDAAN
+        # x = self.linear3(x)
+        # x is dus eerst door layer 1 gegaan en daarna door layer 2
+        # dit is dus een tensor met 3 values
+        return x
+    # hier sla je het model op
+    def save(self, file_name='model8.pth'):
+        # nieuwe map variable op de plek waar dit pycharm project ook is opgeslagen
+        model_folder_path = './model'
+        # als deze map nog niet bestaat
+        if not os.path.exists(model_folder_path):
+            # dan maak de map op de model_folder_path locatie
+            os.makedirs(model_folder_path)
+        # os.path.join: zet iets in een bepaald path, variable. .path.join(welk path?, wat moet erin?)
+        # de 2e file_name verwijst dus nog naar model.pth
+        file_name = os.path.join(model_folder_path, file_name)
+        # save het model, alleen de state_dictionary is genoeg (model parameters)
+        # file_name is het path (alleen het path zeggen is niet genoeg) , hierboven gedefinieerd
+        torch.save(self.state_dict(), file_name)
+
+# trainer (incl. optimalisatie)
+class QTrainer:
+    def __init__(self, model, lr, gamma):
+        # wat variables:
+        # learningrate, hoe snel het model wordt geupdate tijdens de training
+        # kleine learningrate > veel epochs (want kleine weight veranderingen) en andersom
+        self.lr = lr
+        self.gamma = gamma
+        self.model = model
+        # model.compile() in tf:
+        # Adam optimizer, een optimizer heeft de model parameters nodig
+        self.optimizer = optim.Adam(model.parameters(), lr=self.lr)
+        # een loss functie, de Mean Squared Error
+        self.criterion = nn.MSELoss()
+    def train_step(self, state, action, reward, next_state, game_over):
+        # converteer de variables naar tensors zodat ze compatible zijn met het torch model
+        state = torch.tensor(state, dtype=torch.float)
+        next_state = torch.tensor(next_state, dtype=torch.float)
+        # torch.long is eigenlijk gewoon een soort int()
+        action = torch.tensor(action, dtype=torch.long)
+        reward = torch.tensor(reward, dtype=torch.float)
+        # reshapen:
+        # het kan een list zijn of een los getal.
+        # lists zijn in deze shape (n, x), daar moeten die losse getallen ook heen
+        if len(state.shape) == 1:
+            # (1, x)
+            # .unsqueeze betekent een extra dimensie en de 0 betekent aan het begin
+            state = torch.unsqueeze(state, 0)
+            next_state = torch.unsqueeze(next_state, 0)
+            action = torch.unsqueeze(action, 0)
+            reward = torch.unsqueeze(reward, 0)
+            # maak een tuple van game_over
+            # een tuple zijn meerdere items in dezelfde variable bv (1, 2, 3)
+            game_over = (game_over, )
+        # V(s)=maxa(R(s,a)+ γV(s’))
+        # 0: de Bellman equation, nodig omdat de snake steeds op een andere plek start.
+        # 1: predicted Q values met de current state
+        # 2: Q_new = reward + gamma * max(next_predicted Q value) -> alleen als we niet game_over zijn
+        # vervolg: pred.clone()
+        # vervolg2: pred[argmax(action)] = Q_new
+        # mijn comments:
+        # model.predict op basis van de state
+        # pred is de action, een list met 3 verschillende values
+        pred = self.model(state)
+        # kloon van de prediction
+        target = pred.clone()
+        # len want we weten niet of het 1 value is of een list en zo ja, hoelang
+        for index in range(len(game_over)):
+            # de reward (eerst reward[0], dan reward[1] etc) bij de action[0] en action [1] etc.
+            # Q is de kwaliteit van de actie en is dus de reward in dit snake spel (vaak zo)
+            Q_new = reward[index]
+            # als we niet game over zijn, dus game_over is False. anders telt bovenstaande als q_new
+            # game_over moet niet meetellen met de bellman equation
+            if not game_over[index]:
+                # dan doe de Bellman equation V(s)=max(R(s,a)+gamma*V(s'))
+                Q_new = reward[index] + self.gamma * torch.max(self.model(next_state[index]))
+            # .item() want het is nog een tensor en het moet een value zijn
+            # [][] want target is een tensor met kolommen en rijen
+            # je wilt rij index hebben (we kunnen lists hebben) en uit die rij willen we de kolom met de hoogste waarde
+            target[index][torch.argmax(action).item()] = Q_new
+        # reset de optimizer (de gradient leegmaken), dit moet in pytorch
+        self.optimizer.zero_grad()
+        # de loss functie variable
+        # target is de input en pred is de target, ja echt (voorspelling)
+        # hoe target en pred precies in elkaar zitten weet ik nog niet
+        loss = self.criterion(target, pred)
+        # voer de loss functie uit
+        # geeft een nieuwe gradient waarmee de optimizer gaat werken
+        loss.backward()
+        # voer de optimizer uit, de optimizer werkt het model (Linear_QNet) bij, trainen.
+        self.optimizer.step()
