@@ -5,25 +5,21 @@ from collections import namedtuple
 import numpy as np
 import time
 
-# begin van alle pygame projecten
 pygame.init()
-# weet ik niet precies
 class Direction(Enum):
     RIGHT = 1
     LEFT = 2
     UP = 3
     DOWN = 4
 
-# soort mini class: point is de naam en x en y zijn de bijbehorende variables
 Point = namedtuple('Point', 'x, y')
-# kleur rgb codes
+# rgb color codes
 white = (255, 255, 255)
 red = (200, 0, 0)
 blue1 = (0, 0, 255)
 blue2 = (0, 100, 255)
 black = (0, 0, 0)
 yellow = (255, 255, 0)
-# lettertype (lettertype?, grootte?)
 font = pygame.font.SysFont("arial", 25)
 win_font = pygame.font.SysFont("arial", 35)
 
@@ -31,136 +27,81 @@ block_size = 30
 speed = 20
 
 class SnakeGameAI:
-    # eigenlijk gewoon een aantal belangrijke variables voor later
     def __init__(self, width=17*block_size, height=16*block_size):
-        # DISPLAY INITIALISEREN
-        # display
+        # Display
         self.width = width
         self.height = height
         self.display = pygame.display.set_mode((self.width, self.height))
-        # naam display
         pygame.display.set_caption("Snake")
-        # klok als tijd variable
         self.clock = pygame.time.Clock()
         self.reset()
-    # voor de reset als de AI af gaat
-    # de display blijft gewoon hetzelfde maar de andere variables moeten wel weer naar de begin inhoud
+
     def reset(self):
-        # GAME STATUS INITIALISEREN
-        # beginnen met naar de rechterkant lopen
         self.direction = Direction.RIGHT
-        # met een namedtuple, staat boven bij de variables. Hier vertel je hem de x en y.
-        # in de volgende stap wil je namelijk dat hij de x en de y los kan benaderen.
-        # het zou ook met een list kunnen maar dit is korter en eleganter.
-        # self.head = Point(self.width/2, self.height/2)
         self.head = Point(8*block_size, 7*block_size)
-        # als je nu dus de head aanpast, verandert de rest ook gelijk mee.
-        # daarnaast kan je 1. van alle onderdelen van de snake 2. nu snel de x en y benaderen.
         self.snake = [self.head,
                       Point(self.head.x-block_size, self.head.y),
                       Point(self.head.x-2*block_size, self.head.y)]
         self.score = 0
-        # start met None maar wordt later een positie aangegeven
         self.food = None
-        # food plaats functie afspelen die dus de food ergens plaatst
         self.place_food()
-        # om het aantal frames te checken, voor later
         self.frame_iter = 0
-    # een hulp functie omdat je place_food vaker nodig hebt (buiten init) en je geen code gaat dupliceren.
+
     def place_food(self):
-        # om alleen met hele blokken te werken
-        # een getal tussen de 0 en de breedte of hoogte delen door de block_size en afgerond naar beneden
-        # op een heel getal. En dat dan keer de block_size omdat je anders 1 of 2 etc hebt.
-        # die breedte of hoogte - de block_size zodat je alleen food binnen het kader krijgt.
         x = random.randint(0, (self.width-block_size)//block_size)*block_size
         y = random.randint(0, (self.height-block_size)//block_size)*block_size
         self.food = Point(x, y)
-        # als het food in de snake zit dan (controleert alles in de snake list.
         if self.food in self.snake:
-            # dan opnieuw de place_food functie. (recursieve functie)
-            # Gaat dus net zolang door totdat de food niet in de snake zit.
             self.place_food()
 
-    # belangrijkste functie die eigenlijk het hele spel regelt
     def play_step(self, action):
-        # ZELF GEDAAN
         if self.score == 268:
             text = win_font.render("YOU WON!", True, yellow)
             self.display.blit(text, [154, 150])
             pygame.display.update()
             time.sleep(10)
             self.reset()
-        # om de frame_iter te updaten, voor later
         self.frame_iter = self.frame_iter + 1
         # 1. COLLECT USER INPUT
-        # haalt alle user events op.
         for event in pygame.event.get():
-            # als de user het kruisje aanklikt
             if event.type == pygame.QUIT:
-                # dan stop het pygame spel
                 pygame.quit()
-                # en stop het python script
                 quit()
         # 2. MOVE SNAKE
-        # Roept de mymove functie aan die een nieuwe head positie (x en y) berekent
-        # action is een unieke list die rechtdoor, rechts of links aangeeft
         self.mymove(action)
-        # update de snake list met de nieuwe head positie
-        # deze functie wordt straks aangeroepen in de game loop dus moet hij ook hier geupdate worden
-        # de init functie zijn wat start variables.
         self.snake.insert(0, self.head)
         # 3. CHECK GAME OVER
-        # reward voor de AI
         reward = 0
         game_over = False
-        # als True wordt gereturnt door is_collision()
-        # of als het te lang duurt tot de snake food pakt en gewoon rond loopt
-        # (met meer in de snake list heb je meer frame_iter dus meer tijd
         if self.is_collision() or self.frame_iter > 100*len(self.snake):
             reward = -10
             game_over = True
             return reward, game_over, self.score  # score?
         # 4. PLACE NEW FOOD OR MOVE FURTHER
-        # als de head positie hetzelfde is als de food positie
         if self.head == self.food:
-            # dan score omhoog
             self.score = self.score + 1
             reward = 10
-            # en natuurlijk opnieuw food plaatsen
             self.place_food()
         else:
-            # verwijder het laatste stukje uit de snake list waardoor dat laatste stukje niet meer getoont wordt
-            # else want met food wordt de snake natuurlijk een blokje langer
-            # zonder argument verwijdert pop het laatste element
             self.snake.pop()
-        # 5. UPDATE UI EN CLOCK
+        # 5. UPDATE UI AND CLOCK
         self.update_ui()
-        # de framerate, als speed 20 is dan ververst hij 20 keer pers seconde
         self.clock.tick(speed)
         # 6. RETURN GAME OVER EN DE SCORE
         return reward, game_over, self.score
-    # hulp functie om een botsing te detecteren
+
     def is_collision(self, pt=None):
-        # pt (point) is voor later, voor de dangers input in het model
         if pt is None:
             pt = self.head
-        # als de head positie tegen de rand aan is
         if pt.x > self.width - block_size or pt.x < 0 or pt.y > self.height - block_size or pt.y < 0:
             return True
-        # als de head positie een onderdeel van de snake raakt (1: en niet 0: want 0 is altijd de head)
         if pt in self.snake[1:]:
             return True
-        # anders return False
         return False
-    # hulp functie voor play_step: plaatst de elementen op de display en refresht de display ook.
     def update_ui(self):
-        # screen kleur, eerst de screen en daarop teken je straks de snake
         self.display.fill(black)
-        # zelf gedaan
         hoofd = True
-        # dus alle items in de snake list, hier teken je de snake
         for pt in self.snake:
-            # zelf gedaan t/m else
             if hoofd:
                 pygame.draw.rect(self.display, blue1, pygame.Rect(pt.x, pt.y, block_size, block_size))
                 if self.direction == Direction.LEFT:
@@ -168,8 +109,6 @@ class SnakeGameAI:
                     pygame.draw.circle(self.display, white, (pt.x + 19.5, pt.y + 22.5), 5)
                     pygame.draw.circle(self.display, black, (pt.x + 19.5, pt.y + 7.5), 2)
                     pygame.draw.circle(self.display, black, (pt.x + 19.5, pt.y + 22.5), 2)
-                    # pygame.draw.circle(self.display, white, (pt.x+5, pt.y+10), 3)
-                    # pygame.draw.rect(self.display, blue1, pygame.Rect(pt.x+5, pt.y+7, 3, 6))
                 elif self.direction == Direction.RIGHT:
                     pygame.draw.circle(self.display, white, (pt.x + 10.5, pt.y + 7.5), 5)
                     pygame.draw.circle(self.display, white, (pt.x + 10.5, pt.y + 22.5), 5)
@@ -187,67 +126,34 @@ class SnakeGameAI:
                     pygame.draw.circle(self.display, black, (pt.x + 22.5, pt.y + 10.5), 2)
                 hoofd = False
             else:
-                # zet wat op de display
-                # .draw.rect(waarop?, kleur?, welke rectangle?)
-                # .Rect(x-coördinaat?, y-coördinaat?, breedte?, hoogte?)
                 pygame.draw.rect(self.display, blue1, pygame.Rect(pt.x, pt.y, block_size, block_size))
-                # klein vierkantje in het hierboven getekende vierkant
                 pygame.draw.rect(self.display, blue2, pygame.Rect(pt.x+6, pt.y+6, 18, 18))
-        # teken de food
         pygame.draw.rect(self.display, red, pygame.Rect(self.food.x, self.food.y, block_size, block_size))
-        # stukje tekst van de score, variable.
-        # font is een variable boven en daarmee maak je met .render een stuk tekst
         text = font.render("Score: " + str(self.score), True, white)
-        # teken die score, .blit is voor tekst want met .draw maak je dus een rechthoek met tekst erop.
         self.display.blit(text, [0, 0])
-        # refresh de display
-        # .flip is voor het hele display en synchroniseert met je beeld capaciteiten.
-        # .update kan je specifieke delen aangeven en synchroniseert niet.
         pygame.display.flip()
-    # hulp functie om de snake te bewegen
-    # de action is links, rechts of rechtdoor.
-    # Dit is nodig om de action naar achter uit te sluiten en ook is dit overzichtelijker
+
     def mymove(self, action):
-        # de 4 directions met de klok mee, handig voor de beweging later
         clock_wise = [Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.UP]
-        # .index returnt het nummer waar self.direction in de list staat. (0, 1, 2 of 3)
         index = clock_wise.index(self.direction)
-        # [1, 0, 0] is rechtdoor gaan
+        # [1, 0, 0] is straight ahead
         if np.array_equal(action, [1, 0, 0]):
-            # nieuwe direction blijft hetzelfde als de vorige direction bij rechtdoor
             new_direction = clock_wise[index]
-        # [0, 1, 0] is rechts
         elif np.array_equal(action, [0, 1, 0]):
-            # % geeft de rest, dus index 0 wordt next_index 1 etc.
-            # dit moet zodat index 3 weer 0 wordt.
             next_index = (index + 1) % 4
-            # de next_index is dus altijd de direction naar rechts, óp dat moment
             new_direction = clock_wise[next_index]
-        # [0, 0, 1] is rechts
         else:  # [0, 0, 1]
-            # dus door % wordt index 0, next_index 3
             next_index = (index - 1) % 4
-            # de next_index is dus altijd de direction naar links, óp dat moment
             new_direction = clock_wise[next_index]
-        # update van self.direction aan de hand van de AI input
         self.direction = new_direction
-        # variables ophalen om de huidige positie op te halen
         x = self.head.x
         y = self.head.y
-        # self.direction is vlak hierboven vernieuwd
         if self.direction == Direction.LEFT:
-            # dan wordt de x positie dus met de lengte van de block_size kleiner
             x = x - block_size
         elif self.direction == Direction.RIGHT:
-            # dan wordt de x positie dus met de lengte van de block_size groter
             x = x + block_size
         elif self.direction == Direction.UP:
-            # dan wordt de y positie dus met de lengte van de block_size kleiner
-            # kleiner want helemaal links boven is positie (0, 0) en rechts onder (width, height)
             y = y - block_size
         elif self.direction == Direction.DOWN:
-            # dan wordt de y positie dus met de lengte van de block_size groter
-            # groter want helemaal links boven is positie (0, 0) en rechts onder (width, height)
             y = y + block_size
-        # update de head positie met de nieuwe x óf y
         self.head = Point(x, y)
