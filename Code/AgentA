@@ -1,1 +1,601 @@
+import torch
+import random
+import numpy as np
+from collections import deque
+from GameAI import SnakeGameAI, Direction, Point
+from Model import Linear_QNet, QTrainer
+from Helper import plot
 
+max_memory = 100000
+batch_size = 1000
+lr = 0.001
+
+class Agent:
+    def __init__(self):
+        # aantal gespeelde games
+        self.n_games = 0
+        # random keuzes beheersen, later
+        self.epsilon = 0
+        # discount rate, altijd tussen 0 en 1 (vaak 0.8 of 0.9), hoe hoger hoe meer hij kijkt naar lange termijn reward
+        self.gamma = 0.9
+        # deque is een data opslag plaats, als de max_memory wordt bereikt verwijdert hij de oudste gegevens
+        # eigenlijk is een deque een soort list maar kan dan veel sneller pop() en append() doen wat natuurlijk nodig is
+        self.memory = deque(maxlen=max_memory)
+        # voor de model voorspellingen, de Linear_QNet van Model.py
+        # 11 input variables, 3 mogelijke moves, 256 is de hidden_size en kan ook anders zijn
+        self.model = Linear_QNet(11, 256, 3)
+        # voor het trainen van het model, de QTrainer van Model.py
+        self.trainer = QTrainer(self.model, lr=lr, gamma=self.gamma)
+        self.model.load_state_dict(torch.load('./model/model7.pth'))
+        self.model.eval()
+        self.wp = True
+    # krijgt de 11 variables (dangers, directions, food_loc)
+    def get_state(self, game):
+        # snake head variable
+        head = game.snake[0]
+        # punt (x en y) links, recht, boven en beneden van de snake head. voor later de dangers input
+        point_left = Point(head.x - 30, head.y)
+        point_right = Point(head.x + 30, head.y)
+        point_up = Point(head.x, head.y - 30)
+        point_down = Point(head.x, head.y + 30)
+        # de snake (head) direction, voor later de direction en dangers input
+        # bv. als de game.direction, Direction.Left is wordt direction_left 1 of True en de rest 0 of False
+        direction_left = game.direction == Direction.LEFT
+        direction_right = game.direction == Direction.RIGHT
+        direction_up = game.direction == Direction.UP
+        direction_down = game.direction == Direction.DOWN
+        # de status list met de 11 variables (dangers, directions, food richting)
+        state = [
+            # DANGER STRAIGHT
+            # bv als direction_right True is en is_collision ook True returnt, komt er een True in de list op plek 0
+            (direction_left and game.is_collision(point_left)) or
+            (direction_right and game.is_collision(point_right)) or
+            (direction_up and game.is_collision(point_up)) or
+            (direction_down and game.is_collision(point_down)),
+            # DANGER LEFT
+            (direction_left and game.is_collision(point_down)) or
+            (direction_right and game.is_collision(point_up)) or
+            (direction_up and game.is_collision(point_left)) or
+            (direction_down and game.is_collision(point_right)),
+            # DANGER RIGHT
+            (direction_left and game.is_collision(point_up)) or
+            (direction_right and game.is_collision(point_down)) or
+            (direction_up and game.is_collision(point_right)) or
+            (direction_down and game.is_collision(point_left)),
+            # MOVE DIRECTION
+            # bv als direction_left True is komt er een True in de list (drie zijn altijd False)
+            direction_left,
+            direction_right,
+            direction_up,
+            direction_down,
+            # FOOD LOCATION
+            # 2 van onderstaande worden dus altijd True en twee worden er False
+            game.food.x < game.head.x,  # food left
+            game.food.x > game.head.x,  # food right
+            game.food.y < game.head.y,  # food up
+            game.food.y > game.head.y  # food down
+        ]
+        # om de True's en False's in de list om te zetten naar 1's en 0's.
+        return np.array(state, dtype=int)
+    # zelf gedaan
+    def get_state_mod(self, game):
+        # snake head variable
+        head = game.snake[0]
+        # punt (x en y) links, recht, boven en beneden van de snake head. voor later de dangers input
+        point_left = Point(head.x - 30, head.y)
+        point_right = Point(head.x + 30, head.y)
+        point_up = Point(head.x, head.y - 30)
+        point_down = Point(head.x, head.y + 30)
+        # de snake (head) direction, voor later de direction en dangers input
+        # bv. als de game.direction, Direction.Left is wordt direction_left 1 of True en de rest 0 of False
+        direction_left = game.direction == Direction.LEFT
+        direction_right = game.direction == Direction.RIGHT
+        direction_up = game.direction == Direction.UP
+        direction_down = game.direction == Direction.DOWN
+        # overgang van ai naar algo
+        if self.wp:
+            waypoint = Point(480, 450)
+            if head.x == 480 and head.y == 450:
+                self.wp = False
+        else:
+            waypoint = Point(30, 450)
+        # de status list met de 11 variables (dangers, directions, food richting)
+        state = [
+            # DANGER STRAIGHT
+            # bv als direction_right True is en is_collision ook True returnt, komt er een True in de list op plek 0
+            (direction_left and game.is_collision(point_left)) or
+            (direction_right and game.is_collision(point_right)) or
+            (direction_up and game.is_collision(point_up)) or
+            (direction_down and game.is_collision(point_down)),
+            # DANGER LEFT
+            (direction_left and game.is_collision(point_down)) or
+            (direction_right and game.is_collision(point_up)) or
+            (direction_up and game.is_collision(point_left)) or
+            (direction_down and game.is_collision(point_right)),
+            # DANGER RIGHT
+            (direction_left and game.is_collision(point_up)) or
+            (direction_right and game.is_collision(point_down)) or
+            (direction_up and game.is_collision(point_right)) or
+            (direction_down and game.is_collision(point_left)),
+            # MOVE DIRECTION
+            # bv als direction_left True is komt er een True in de list (drie zijn altijd False)
+            direction_left,
+            direction_right,
+            direction_up,
+            direction_down,
+            # FOOD LOCATION
+            # 2 van onderstaande worden dus altijd True en twee worden er False
+            waypoint.x < game.head.x,  # food left
+            waypoint.x > game.head.x,  # food right
+            waypoint.y < game.head.y,  # food up
+            waypoint.y > game.head.y  # food down
+        ]
+        # om de True's en False's in de list om te zetten naar 1's en 0's.
+        return np.array(state, dtype=int)
+
+
+    # opslaan van de status met de gespeelde actie, reward, de volgde status en wel of niet game_over
+    # voor later voor het trainen
+    def remember(self, state, action, reward, next_state, game_over):
+        # het een en ander toevoegen aan de deque
+        self.memory.append((state, action, reward, next_state, game_over))
+
+    def train_long_memory(self):
+        # als de memory deque meer dan 1000 gegevens bevat (met speed 20 duurt dat 50 sec.)
+        if len(self.memory) > batch_size:
+            # pak dan 1000 random gegevens uit de memory (wordt een list)
+            # .random voor een goede gevarieerde mini_sample, de volgorde maakt toch niet uit.
+            mini_sample = random.sample(self.memory, batch_size)
+        else:
+            # pak anders de hele memory
+            mini_sample = self.memory
+        # met zip(*) wordt er een list gemaakt van alle states, actions etc.
+        # mini_sample zit in deze vorm: [(state1, action1, etc), (state2, action2, etc.), etc.]
+        # de zip functie kan met die vorm werken, * heeft zip nodig om te unpacken (unpacken kan ook met een loop)
+        states, actions, rewards, next_states, game_overs = zip(*mini_sample)
+        # roept het model aan om te trainen met dus een list van de volgende parameters
+        # states[0] hoort bij actions[0] etc.
+        self.trainer.train_step(states, actions, rewards, next_states, game_overs)
+
+    # train het model voor 1 game stap
+    def train_short_memory(self, state, action, reward, next_state, game_over):
+        # roept het model aan om te trainen
+        self.trainer.train_step(state, action, reward, next_state, game_over)
+
+    # om een actie te krijgen aan de hand van de state
+    def get_action(self, state):
+        # random moves: tradeoff exploration / exploitation
+        # eerst moet hij ook wat random moves doen om te exploren maar hoe slimmer hij wordt, hoe meer hij moet voorspellen
+        # na 80 games is epsilon dus 0, later, dan moet hij geen random moves meer doen
+        self.epsilon = 0 - self.n_games
+        # een 0 wordt straks een 1
+        final_move = [0, 0, 0]
+        # als een random getal tussen 0 en 200 lager wordt dan epsilon
+        # bij meer games is dit steeds minder het geval
+        if random.randint(0, 200) < self.epsilon:
+            # dan move is 0, 1 of 2
+            move = random.randint(0, 2)
+            # en item move wordt dan een 1. De final move is dan dus random
+            final_move[move] = 1
+        # anders moet hij de final_move, dus de beweging die hij gaat maken wel voorspellen
+        else:
+            # state0 is een tensor zodat het compatible is met het torch model
+            state0 = torch.tensor(state, dtype=torch.float)
+            # model.predict op basis van state0, zal de forward functie afspelen
+            prediction = self.model(state0)
+            # returnt bv [5.3, 2, 0.3], .argmax() zoekt het hoogste getal en .item geeft de index daarvan (0, 1 of 2)
+            move = torch.argmax(prediction).item()
+            # en item move wordt dan een 1. De final move is dan dus voorspelt
+            final_move[move] = 1
+        return final_move
+
+
+grid = [[-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+        [-1, 135, 136, 139, 140, 143, 144, 147, 148, 153, 154, 159, 160, 161, 162, 163, 174, 175, -1],
+        [-1, 134, 137, 138, 141, 142, 145, 146, 149, 152, 155, 158, 167, 166, 165, 164, 173, 176, -1],
+        [-1, 133, 132, 131, 114, 113, 112, 111, 150, 151, 156, 157, 168, 169, 170, 171, 172, 177, -1],
+        [-1, 128, 129, 130, 115, 108, 109, 110, 95, 94, 93, 92, 91, 90, 89, 88, 179, 178, -1],
+        [-1, 127, 126, 125, 116, 107, 106, 105, 96, 5, 6, 7, 20, 21, 86, 87, 180, 181, -1],
+        [-1, 122, 123, 124, 117, 102, 103, 104, 97, 4, 9, 8, 19, 22, 85, 84, 183, 182, -1],
+        [-1, 121, 120, 119, 118, 101, 100, 99, 98, 3, 10, 11, 18, 23, 82, 83, 184, 185, -1],
+        [-1, 262, 263, 266, 267, 268, 269, 270, 271, 2, 13, 12, 17, 24, 81, 80, 187, 186, -1],
+        [-1, 261, 264, 265, 54, 53, 52, 51, 0, 1, 14, 15, 16, 25, 78, 79, 188, 189, -1],
+        [-1, 260, 259, 258, 55, 56, 57, 50, 43, 42, 31, 30, 27, 26, 77, 192, 191, 190, -1],
+        [-1, 255, 256, 257, 60, 59, 58, 49, 44, 41, 32, 29, 28, 75, 76, 193, 194, 195, -1],
+        [-1, 254, 253, 252, 61, 62, 63, 48, 45, 40, 33, 34, 35, 74, 199, 198, 197, 196, -1],
+        [-1, 249, 250, 251, 236, 235, 64, 47, 46, 39, 38, 37, 36, 73, 200, 201, 202, 203, -1],
+        [-1, 248, 247, 246, 237, 234, 65, 66, 67, 68, 69, 70, 71, 72, 211, 210, 209, 204, -1],
+        [-1, 243, 244, 245, 238, 233, 230, 229, 226, 225, 222, 221, 218, 217, 212, 213, 208, 205, -1],
+        [-1, 242, 241, 240, 239, 232, 231, 228, 227, 224, 223, 220, 219, 216, 215, 214, 207, 206, -1],
+        [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]]
+
+highest = max(max(grid))
+# TODO: wat als -5 niet kan, negatief getal preciezer maken dus niet 271
+def best_step(x_head, y_head, pos, food_pos, tail_pos, game_dir):
+    options = []
+    move = "nothing"
+    # posities om de head
+    left = grid[int(y_head)][int(x_head-1)]
+    right = grid[int(y_head)][int(x_head+1)]
+    up = grid[int(y_head-1)][int(x_head)]
+    down = grid[int(y_head+1)][int(x_head)]
+    # vind de beste move:
+    # A
+    if tail_pos > pos:
+        # 1
+        if food_pos > pos:
+            if left > pos and left < food_pos and left < tail_pos and left > pos:
+                if game_dir != Direction.RIGHT and left != -1:
+                    options.append(left)
+            if up > pos and up < food_pos and up < tail_pos and up > pos:
+                if game_dir != Direction.DOWN and up != -1:
+                    options.append(up)
+            if right > pos and right < food_pos and right < tail_pos and right > pos:
+                if game_dir != Direction.LEFT and right != -1:
+                    options.append(right)
+            if down > pos and down < food_pos and down < tail_pos and down > pos:
+                if game_dir != Direction.UP and down != -1:
+                    options.append(down)
+            # beste mogelijkheid
+            if len(options) != 0:
+                move = max(options)
+        # 2
+        elif food_pos < pos:
+            if left > pos:
+                if game_dir != Direction.RIGHT and left != -1 and left < tail_pos and left > pos:
+                    options.append(left)
+            if up > pos:
+                if game_dir != Direction.DOWN and up != -1 and up < tail_pos and up > pos:
+                    options.append(up)
+            if right > pos:
+                if game_dir != Direction.LEFT and right != -1 and right < tail_pos and right > pos:
+                    options.append(right)
+            if down > pos:
+                if game_dir != Direction.UP and down != -1 and down < tail_pos and down > pos:
+                    options.append(down)
+            # beste mogelijkheid
+            if len(options) != 0:
+                move = max(options)
+    # B
+    elif tail_pos < pos:
+        # 1
+        if food_pos > pos:
+            if left > pos and left < food_pos:
+                if game_dir != Direction.RIGHT and left != -1:
+                    options.append(left)
+            if up > pos and up < food_pos:
+                if game_dir != Direction.DOWN and up != -1:
+                    options.append(up)
+            if right > pos and right < food_pos:
+                if game_dir != Direction.LEFT and right != -1:
+                    options.append(right)
+            if down > pos and down < food_pos:
+                if game_dir != Direction.UP and down != -1:
+                    options.append(down)
+            # beste mogelijkheid
+            if len(options) != 0:
+                move = max(options)
+        # 2
+        elif food_pos < pos:
+            if left > pos or left < food_pos:
+                if left < tail_pos or left > pos:
+                    if game_dir != Direction.RIGHT and left != -1:
+                        options.append(left)
+            if up > pos or up < food_pos:
+                if up < tail_pos and up > pos:
+                    if game_dir != Direction.DOWN and up != -1:
+                        options.append(up)
+            if right > pos or right < food_pos:
+                if right < tail_pos or right > pos:
+                    if game_dir != Direction.LEFT and right != -1:
+                        options.append(right)
+            if down > pos or down < food_pos:
+                if down < tail_pos or down > pos:
+                    if game_dir != Direction.UP and down != -1:
+                        options.append(down)
+            # best mogelijkheid
+            if len(options) != 0:
+                if any(num < food_pos for num in options):
+                    move = min(options)
+                else:
+                    move = max(options)
+    # C
+    # als er geen move is gevonden dan gewoon een hokje verder in de basis route (dus +1)
+    if move == "nothing":
+        if pos == highest:
+            if left == 0:
+                move = left
+            elif up == 0:
+                move = up
+            elif right == 0:
+                move = right
+            elif down == 0:
+                move = down
+        else:
+            if left == pos + 1:
+                move = left
+            elif up == pos + 1:
+                move = up
+            elif right == pos + 1:
+                move = right
+            elif down == pos + 1:
+                move = down
+
+    # check welke direction bij de beste mogelijkheid hoort
+    if move == left:
+        return "left"
+    elif move == up:
+        return "up"
+    elif move == right:
+        return "right"
+    elif move == down:
+        return "down"
+    else:
+        print("Geen move gevonden!")
+
+def savest_step(x_head, y_head, pos):
+    move = "nothing"
+    # posities om de head
+    left = grid[int(y_head)][int(x_head-1)]
+    right = grid[int(y_head)][int(x_head+1)]
+    up = grid[int(y_head-1)][int(x_head)]
+    down = grid[int(y_head+1)][int(x_head)]
+    if pos == highest:
+        if left == 0:
+            move = left
+        elif up == 0:
+            move = up
+        elif right == 0:
+            move = right
+        elif down == 0:
+            move = down
+    else:
+        if left == pos + 1:
+            move = left
+        elif up == pos + 1:
+            move = up
+        elif right == pos + 1:
+            move = right
+        elif down == pos + 1:
+            move = down
+    # check welke direction bij de beste mogelijkheid hoort
+    if move == left:
+        return "left"
+    elif move == up:
+        return "up"
+    elif move == right:
+        return "right"
+    elif move == down:
+        return "down"
+    else:
+        print("Geen move gevonden!")
+
+def train():
+    # zelf gedaan
+    breaker = 0
+    # om later de scores te plotten
+    plot_scores = []
+    # gemiddelde scores
+    plot_mean_scores = []
+    # totale score
+    total_score = 0
+    # record score
+    record = 268
+    agent = Agent()
+    game = SnakeGameAI()
+    # training loop
+    while True:
+        run = True
+        while run:
+            # een aantal variables
+            # current status (oude status) ophalen van de get_state() functie
+            state_old = agent.get_state(game)
+            # move aan de hand van de current status ophalen van de get_acton() functie
+            final_move = agent.get_action(state_old)
+            # doe de move en get de nieuwe status, play_step voert die uit en ziet final_move als de action
+            reward, game_over, score = game.play_step(final_move)
+            # nieuwe status (na de move) ophalen van de get_state() functie
+            state_new = agent.get_state(game)
+            # train short memory (op basis van de vorige state, de move, de state daarna + reward en game_over)
+            agent.train_short_memory(state_old, final_move, reward, state_new, game_over)
+            # opslaan van de vorige state, de move, de state daarna + reward en game_over
+            agent.remember(state_old, final_move, reward, state_new, game_over)
+            # als game_over is True
+            if game_over:
+                # reset functie uit SnakeGameAI
+                game.reset()
+                agent.n_games = agent.n_games + 1
+                # train long memory (op basis van het hele geheugen)
+                # staat hier want dit hoeft niet bij elke iteratie, daar is short_term_memory() voor.
+                # er is ook niet echt genoeg data voor train_long_memory()
+                agent.train_long_memory()
+                # check voor high score (record)
+                if score > record:
+                    record = score
+                    # model opslaan als hij wat goeds doet, denk ik
+                agent.model.save()
+                print("Game", agent.n_games, "Score", score, "Record", record)
+                # een list waar na de game steeds de score wordt toegevoegd
+                plot_scores.append(score)
+                # getal waar na de game de steeds de score wordt opgeteld, voor later (gem. score)
+                total_score = total_score + score
+                # gemiddelde score: totale score / aantal games
+                mean_score = total_score / agent.n_games
+                # een list waar na de game steeds de mean_score wordt toegevoegd
+                plot_mean_scores.append(mean_score)
+                plot(plot_scores, plot_mean_scores)
+                run = False
+            elif score == 18:  # target 18
+                break
+
+        while run:
+            # een aantal variables
+            # current status (oude status) ophalen van de get_state() functie
+            state_old = agent.get_state_mod(game)
+            # move aan de hand van de current status ophalen van de get_acton() functie
+            final_move = agent.get_action(state_old)
+            # doe de move en get de nieuwe status, play_step voert die uit en ziet final_move als de action
+            reward, game_over, score = game.play_step(final_move)
+            # nieuwe status (na de move) ophalen van de get_state() functie
+            # als game_over is True
+            if game_over:
+                # reset functie uit SnakeGameAI
+                game.reset()
+                agent.n_games = agent.n_games + 1
+                # check voor high score (record)
+                if score > record:
+                    record = score
+                    # model opslaan als hij wat goeds doet, denk ik
+                print("Game", agent.n_games, "Score", score, "Record", record)
+                # een list waar na de game steeds de score wordt toegevoegd
+                plot_scores.append(score)
+                # getal waar na de game de steeds de score wordt opgeteld, voor later (gem. score)
+                total_score = total_score + score
+                # gemiddelde score: totale score / aantal games
+                mean_score = total_score / agent.n_games
+                # een list waar na de game steeds de mean_score wordt toegevoegd
+                plot_mean_scores.append(mean_score)
+                plot(plot_scores, plot_mean_scores)
+                run = False
+            if breaker == 1 and game.head.x == 30 and game.head.y == 450:
+                breaker = 0
+                break
+            if game.head.x == 480 and game.head.y == 450:
+                breaker = breaker + 1
+
+        while run:
+            algo_move = [0, 0, 0]
+            snake = game.snake
+            # tail
+            x_tail = snake[-1].x / 30 + 1
+            y_tail = snake[-1].y / 30 + 1
+            tail_pos = grid[int(y_tail)][int(x_tail)]
+            tail_pos = tail_pos - 3
+            if tail_pos < 0:
+                if tail_pos == -1:
+                    tail_pos = highest
+                elif tail_pos == -2:
+                    tail_pos = highest - 1
+                elif tail_pos == -3:
+                    tail_pos = highest - 2
+            # food
+            x_food = game.food.x / 30 + 1
+            y_food = game.food.y / 30 + 1
+            food_pos = grid[int(y_food)][int(x_food)]
+            # head
+            x_head = snake[0].x / 30 + 1
+            y_head = snake[0].y / 30 + 1
+            pos = grid[int(y_head)][int(x_head)]
+            # antwoord
+            dir = best_step(x_head, y_head, pos, food_pos, tail_pos, game.direction)
+            if game.direction == Direction.LEFT:
+                if dir == "left":
+                    algo_move = [1, 0, 0]
+                elif dir == "up":
+                    algo_move = [0, 1, 0]
+                elif dir == "down":
+                    algo_move = [0, 0, 1]
+            elif game.direction == Direction.RIGHT:
+                if dir == "right":
+                    algo_move = [1, 0, 0]
+                elif dir == "up":
+                    algo_move = [0, 0, 1]
+                elif dir == "down":
+                    algo_move = [0, 1, 0]
+            elif game.direction == Direction.UP:
+                if dir == "up":
+                    algo_move = [1, 0, 0]
+                elif dir == "left":
+                    algo_move = [0, 0, 1]
+                elif dir == "right":
+                    algo_move = [0, 1, 0]
+            elif game.direction == Direction.DOWN:
+                if dir == "down":
+                    algo_move = [1, 0, 0]
+                elif dir == "left":
+                    algo_move = [0, 1, 0]
+                elif dir == "right":
+                    algo_move = [0, 0, 1]
+            reward, game_over, score = game.play_step(algo_move)
+            if game_over:
+                # reset functie uit SnakeGameAI
+                game.reset()
+                agent.n_games = agent.n_games + 1
+                # check voor high score (record)
+                if score > record:
+                    record = score
+                print("Game", agent.n_games, "Score", score, "Record", record)
+                # een list waar na de game steeds de score wordt toegevoegd
+                plot_scores.append(score)
+                # getal waar na de game de steeds de score wordt opgeteld, voor later (gem. score)
+                total_score = total_score + score
+                # gemiddelde score: totale score / aantal games
+                mean_score = total_score / agent.n_games
+                # een list waar na de game steeds de mean_score wordt toegevoegd
+                plot_mean_scores.append(mean_score)
+                plot(plot_scores, plot_mean_scores)
+                run = False
+            elif score > highest * 0.81:  # 220
+                break
+
+        while run:
+            algo_move = [0, 0, 0]
+            snake = game.snake
+            # head
+            x_head = snake[0].x / 30 + 1
+            y_head = snake[0].y / 30 + 1
+            pos = grid[int(y_head)][int(x_head)]
+            # antwoord
+            dir = savest_step(x_head, y_head, pos)
+            if game.direction == Direction.LEFT:
+                if dir == "left":
+                    algo_move = [1, 0, 0]
+                elif dir == "up":
+                    algo_move = [0, 1, 0]
+                elif dir == "down":
+                    algo_move = [0, 0, 1]
+            elif game.direction == Direction.RIGHT:
+                if dir == "right":
+                    algo_move = [1, 0, 0]
+                elif dir == "up":
+                    algo_move = [0, 0, 1]
+                elif dir == "down":
+                    algo_move = [0, 1, 0]
+            elif game.direction == Direction.UP:
+                if dir == "up":
+                    algo_move = [1, 0, 0]
+                elif dir == "left":
+                    algo_move = [0, 0, 1]
+                elif dir == "right":
+                    algo_move = [0, 1, 0]
+            elif game.direction == Direction.DOWN:
+                if dir == "down":
+                    algo_move = [1, 0, 0]
+                elif dir == "left":
+                    algo_move = [0, 1, 0]
+                elif dir == "right":
+                    algo_move = [0, 0, 1]
+            reward, game_over, score = game.play_step(algo_move)
+            if game_over:
+                # reset functie uit SnakeGameAI
+                game.reset()
+                agent.n_games = agent.n_games + 1
+                # check voor high score (record)
+                if score > record:
+                    record = score
+                print("Game", agent.n_games, "Score", score, "Record", record)
+                # een list waar na de game steeds de score wordt toegevoegd
+                plot_scores.append(score)
+                # getal waar na de game de steeds de score wordt opgeteld, voor later (gem. score)
+                total_score = total_score + score
+                # gemiddelde score: totale score / aantal games
+                mean_score = total_score / agent.n_games
+                # een list waar na de game steeds de mean_score wordt toegevoegd
+                plot_mean_scores.append(mean_score)
+                plot(plot_scores, plot_mean_scores)
+                run = False
+
+# als dit script als main proces wordt gespeeld, staat wel elegant
+# en nu kan je hem ook op een popie jopie manier starten
+if __name__ == '__main__':
+    train()
