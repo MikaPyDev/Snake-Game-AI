@@ -28,4 +28,8 @@ This is basically a very accelerated version of the standard algorithm, which I 
 ![image](https://github.com/MikaPyDev/Snake-Game-AI/assets/151953210/011ce4ed-43ff-4952-9550-d12073f6bae5)
 
 ## Other useful information:
-I used
+The code folder contains 4 files:
+  1. GameAI: the Snake game preprocessed for AI input;
+  2. AgentA: the controller with algorithm. This is the only file you need to start;
+  3. Model: the complete neural network;
+  4. Helper: a view that generates the performance of the neural network live during training.
