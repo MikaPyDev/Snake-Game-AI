@@ -1,19 +1,12 @@
 import matplotlib.pyplot as plt
-# ipython kan goed samenwerken met matplotlib
 from IPython import display
 import time
 
-# interactieve mode aanzetten, zodat de plot wordt bijgewerkt als er aan het eind van de game nieuwe scores bijkomen
+# interactive mode
 plt.ion()
-# functie om de scores en gemiddelde scores plotten
 def plot(scores, mean_scores):
-    # delete de oude plot in de notebook-cel, ook in pycharm?
-    # want als de functie wordt aangeroepen wordt er een nieuwe score toegevoegd
     display.clear_output(wait=True)
-    # toon de nieuwe plot met alle scores in de notebook-cel, ook in pycharm?
-    # plt.gcf() geeft de huidige figuur.
     display.display(plt.gcf())
-    # delete de 'oude' score lijn maar laat het assenstelsel staan en voorbereiding op de nieuwe score lijn
     plt.clf()
     plt.title("Training...")
     plt.xlabel("Aantal games")
@@ -21,13 +14,8 @@ def plot(scores, mean_scores):
     plt.plot(scores)
     plt.plot(mean_scores)
     plt.ylim(ymin=0)
-    # stukje tekst (x, y, tekst)
-    # len begint bij 1, daarom -1, scores[-1] om de laatste score te pakken, str(...) om de score te tonen
-    # x is het aantal games en y is de score dus de tekst staat nu op de goede plek.
     plt.text(len(scores)-1, scores[-1], str(scores[-1]))
-    # zie comments hierboven
     plt.text(len(mean_scores)-1, mean_scores[-1], str(mean_scores[-1]))
-    # geeft matplotlib even de tijd om de plot bij te werken
+    # give matplotlib some time
     plt.pause(.05)
-    # toon de plot, met block=False stopt het script niet zolang je de plot niet afsluit
     plt.show(block=False)
