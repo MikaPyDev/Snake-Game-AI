@@ -26,3 +26,6 @@ Before I can explain the "pertubated" version, it is first important to understa
 ### Pertubated hamiltonian cycle
 This is basically a very accelerated version of the standard algorithm, which I use in the middle phase of the game. In doing so, the snake takes shortcuts. This is best understood with the image below:
 ![image](https://github.com/MikaPyDev/Snake-Game-AI/assets/151953210/011ce4ed-43ff-4952-9550-d12073f6bae5)
+
+## Other useful information:
+I used
