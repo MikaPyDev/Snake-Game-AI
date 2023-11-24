@@ -33,3 +33,15 @@ The code folder contains 4 files:
   2. AgentA: the controller with algorithm. This is the only file you need to start;
   3. Model: the complete neural network;
   4. Helper: a view that generates the performance of the neural network live during training.
+
+The main libraries from this project are:
+  1. Pytorch
+  2. Pygame
+  3. Matplotlib
+  4. Numpy
+
+Finally, I would like to thank John Flux and Patrick Loeber for their useful information:
+  - https://johnflux.com/2015/05/02/nokia-6110-part-3-algorithms/
+  - https://www.youtube.com/results?search_query=patrick+loeber
+
+
