@@ -16,3 +16,4 @@ Optimizer: Adam.
 Loss: Mean Squared Error (MSE).
 
 Since the snake is always in a different position on the game board, we need to use the Bellman equation so that wherever the snake is, the model can make the correct predictions. Which looks as follows: V(s)=max(R(s,a)+gamma*V(s'))
+Het eerste deel (max(R(s,a)) is simpel gezegd de reward van een actie in een bepaalde state. Het tweede deel (gamma*V(s')) geeft de mogelijke toekomstige reward aan want de slang moet natuurlijk ook vooruit kijken. Daarbij is gamma de discount factor tussen 0 en 1.
