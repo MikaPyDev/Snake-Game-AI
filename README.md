@@ -16,6 +16,6 @@ Activation: Rectified Linear Unit (ReLU) > converts negative numbers to zeros an
 Optimizer: Adam.
 Loss: Mean Squared Error (MSE).
 
-Since the snake is always in a different position on the game board, we need to use the Bellman equation so that wherever the snake is, the model can make the correct predictions. Which looks as follows: V(s)=max(R(s,a)+gamma*V(s'))
+Since the snake is always in a different position on the game board, we need to use the **Bellman equation** so that wherever the snake is, the model can make the correct predictions. Which looks as follows: V(s)=max(R(s,a)+gamma*V(s'))
 In simple terms, the first part (max(R(s,a)) is the current reward of an action in a given state. The second part (gamma V(s')) indicates the possible future reward because, of course, the snake must also look ahead.
 Thereby, gamma is the discount factor between 0 and 1.
