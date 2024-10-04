@@ -34,7 +34,6 @@ class Agent:
         direction_down = game.direction == Direction.DOWN
         state = [
             # DANGER STRAIGHT
-            # bv als direction_right True is en is_collision ook True returnt, komt er een True in de list op plek 0
             (direction_left and game.is_collision(point_left)) or
             (direction_right and game.is_collision(point_right)) or
             (direction_up and game.is_collision(point_up)) or
@@ -50,7 +49,7 @@ class Agent:
             (direction_up and game.is_collision(point_right)) or
             (direction_down and game.is_collision(point_left)),
             # MOVE DIRECTION
-            # bv als direction_left True is komt er een True in de list (drie zijn altijd False)
+            # one is True and three are always False
             direction_left,
             direction_right,
             direction_up,
