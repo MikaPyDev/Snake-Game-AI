@@ -87,7 +87,7 @@ class SnakeGameAI:
         # 5. UPDATE UI AND CLOCK
         self.update_ui()
         self.clock.tick(speed)
-        # 6. RETURN GAME OVER EN DE SCORE
+        # 6. RETURN GAME OVER AND SCORE
         return reward, game_over, self.score
 
     def is_collision(self, pt=None):
@@ -100,7 +100,7 @@ class SnakeGameAI:
         return False
     def update_ui(self):
         self.display.fill(black)
-        hoofd = True
+        hoofd = True  # head
         for pt in self.snake:
             if hoofd:
                 pygame.draw.rect(self.display, blue1, pygame.Rect(pt.x, pt.y, block_size, block_size))
